@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Pantry</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f6f1ea; color: #333; }
+  header { background: #c8651b; color: #fff; padding: 16px; text-align: center; font-size: 22px; font-weight: bold; }
+  .add { display: flex; gap: 8px; padding: 12px; background: #fff; flex-wrap: wrap; }
+  .add input, .add select { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
+  #name { flex: 2; min-width: 140px; }
+  #qty { flex: 1; min-width: 60px; }
+  #unit, #cat { flex: 1; min-width: 90px; }
+  #minq { flex: 1; min-width: 80px; }
+  .add button { padding: 10px 18px; font-size: 16px; background: #c8651b; color: #fff; border: none; border-radius: 6px; }
+  .add button.scan { background: #fff; color: #c8651b; border: 1px solid #c8651b; }
+  .tools { display: flex; gap: 8px; padding: 10px 12px 0; flex-wrap: wrap; }
+  .tools input[type=text] { flex: 1; min-width: 140px; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; }
+  .tools select { padding: 10px; font-size: 15px; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
+  .tools button { padding: 10px 14px; font-size: 14px; background: #fff; color: #c8651b; border: 1px solid #c8651b; border-radius: 6px; }
+  .filter { padding: 8px 12px 0; font-size: 15px; }
+  #list { padding: 12px; display: grid; gap: 10px; }
+  .item { display: flex; align-items: center; gap: 12px; background: #fff; padding: 10px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .item.lowstock { border-left: 6px solid #e67e22; }
+  .item.out { border-left: 6px solid #c0392b; }
+  .thumb { width: 64px; height: 64px; border-radius: 8px; background: #ddd; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #888; cursor: pointer; overflow: hidden; flex-shrink: 0; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .info { flex: 1; }
+  .iname { font-size: 18px; font-weight: bold; }
+  .meta { font-size: 13px; color: #777; }
+  .warn { font-size: 13px; font-weight: bold; }
+  .warn.low { color: #e67e22; }
+  .warn.out { color: #c0392b; }
+  .ctrl { display: flex; align-items: center; gap: 8px; }
+  .ctrl button { width: 38px; height: 38px; font-size: 22px; border: none; border-radius: 50%; background: #c8651b; color: #fff; }
+  .count { min-width: 28px; text-align: center; font-size: 20px; font-weight: bold; }
+  .ctrl .edit { background: none; color: #555; font-size: 18px; width: 32px; }
+  .ctrl .del { background: none; color: #c0392b; font-size: 18px; width: 32px; }
+  .empty { text-align: center; color: #888; padding: 30px; }
+  #scanBox { display: none; padding: 12px; background: #000; text-align: center; }
+  #scanBox video { width: 100%; max-height: 260px; }
+  #scanBox button { margin-top: 8px; padding: 8px 16px; font-size: 15px; border: none; border-radius: 6px; background: #fff; color: #333; }
+  #scanMsg { color: #fff; font-size: 14px; padding-top: 6px; }
+  .overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 10; align-items: center; justify-content: center; padding: 16px; }
+  .box { background: #fff; border-radius: 12px; padding: 16px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; display: grid; gap: 10px; }
+  .box h3 { margin: 0; color: #c8651b; }
+  .box label { font-size: 13px; color: #666; display: grid; gap: 4px; }
+  .box input, .box select { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
+  .box .row { display: flex; gap: 8px; }
+  .box .row input { flex: 1; min-width: 0; }
+  .box .row button { flex: 1; padding: 11px; font-size: 16px; border: none; border-radius: 6px; }
+  .box .row .addbtn { flex: 0 0 auto; padding: 11px 18px; }
+  .box .save { background: #c8651b; color: #fff; }
+  .box .cancel { background: #eee; color: #333; }
+  .box button.wide { padding: 11px; font-size: 16px; border: none; border-radius: 6px; }
+  .box button.link { background: none; border: none; color: #c8651b; font-size: 14px; text-decoration: underline; padding: 4px; }
+  .catrow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
+  .catrow span { flex: 1; font-size: 16px; }
+  .catrow small { color: #888; }
+  .catrow button { padding: 6px 10px; font-size: 13px; border: 1px solid #c8651b; background: #fff; color: #c8651b; border-radius: 6px; }
+  .catrow button.red { border-color: #c0392b; color: #c0392b; }
+</style>
+</head>
+<body>
+<header>My Pantry</header>
+
+<div class="add">
+  <input id="name" placeholder="Item name">
+  <button class="scan" onclick="startScan()">&#128247; Scan</button>
+  <input id="qty" type="number" min="0" placeholder="Qty">
+  <select id="unit">
+    <option value="">Unit</option>
+    <option>pieces</option>
+    <option>packs</option>
+    <option>tins</option>
+    <option>bottles</option>
+    <option>kg</option>
+    <option>litres</option>
+  </select>
+  <select id="cat"></select>
+  <input id="minq" type="number" min="0" placeholder="Low at">
+  <button onclick="addItem()">Add</button>
+</div>
+
+<div id="scanBox">
+  <video id="video" playsinline muted></video>
+  <div id="scanMsg">Point the camera at a barcode</div>
+  <button onclick="stopScan()">Cancel</button>
+</div>
+
+<div class="tools">
+  <input type="text" id="search" placeholder="Search items..." oninput="render()">
+  <select id="catFilter" onchange="render()"></select>
+  <button onclick="openCats()">Categories</button>
+  <button onclick="exportData()">Export</button>
+  <button onclick="document.getElementById('importPicker').click()">Import</button>
+</div>
+<div class="filter">
+  <label><input type="checkbox" id="lowOnly" onchange="render()"> Show only low or out of stock (shopping list)</label>
+</div>
+
+<div id="list"></div>
+
+<div id="editOverlay" class="overlay">
+  <div id="editBox" class="box">
+    <h3>Edit item</h3>
+    <label>Name <input id="eName"></label>
+    <label>Quantity <input id="eQty" type="number" min="0"></label>
+    <label>Unit
+      <select id="eUnit">
+        <option value="">None</option>
+        <option>pieces</option>
+        <option>packs</option>
+        <option>tins</option>
+        <option>bottles</option>
+        <option>kg</option>
+        <option>litres</option>
+      </select>
+    </label>
+    <label>Category <select id="eCat"></select></label>
+    <label>Low-stock level (0 turns the warning off) <input id="eMin" type="number" min="0"></label>
+    <div class="row">
+      <button class="cancel" onclick="closeEdit()">Cancel</button>
+      <button class="save" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="catOverlay" class="overlay">
+  <div id="catBox" class="box">
+    <h3>Manage categories</h3>
+    <div id="catList"></div>
+    <div class="row">
+      <input id="newCat" placeholder="New category name">
+      <button class="save addbtn" onclick="addCategory()">Add</button>
+    </div>
+    <button class="link" onclick="restoreDefaults()">Restore default categories</button>
+    <button class="cancel wide" onclick="closeCats()">Done</button>
+  </div>
+</div>
+
+<input type="file" id="filePicker" accept="image/*" style="display:none">
+<input type="file" id="importPicker" accept=".json,application/json" style="display:none">
+
+<script>
+  var DEFAULT_CATS = ['Dairy', 'Tins', 'Grains', 'Spices', 'Drinks', 'Snacks', 'Frozen', 'Vegetables', 'Other'];
+  var items = JSON.parse(localStorage.getItem('pantryItems') || '[]');
+  var cats = JSON.parse(localStorage.getItem('pantryCats') || 'null') || DEFAULT_CATS.slice();
+  var barcodeNames = JSON.parse(localStorage.getItem('pantryBarcodes') || '{}');
+  var pickingFor = null;
+  var editingId = null;
+  var scanStream = null;
+  var scanTimer = null;
+  var lastBarcode = '';
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function syncCats() {
+    items.forEach(function (it) {
+      if (it.cat && cats.indexOf(it.cat) === -1) { cats.push(it.cat); }
+    });
+  }
+  syncCats();
+
+  function save() {
+    try {
+      localStorage.setItem('pantryItems', JSON.stringify(items));
+      localStorage.setItem('pantryCats', JSON.stringify(cats));
+      localStorage.setItem('pantryBarcodes', JSON.stringify(barcodeNames));
+    } catch (e) { alert('Storage is full. Try removing some photos.'); }
+  }
+
+  // ---------- Category lists ----------
+  function fillSelect(id, firstLabel) {
+    var sel = document.getElementById(id);
+    var current = sel.value;
+    sel.innerHTML = '';
+    var first = document.createElement('option');
+    first.value = '';
+    first.textContent = firstLabel;
+    sel.appendChild(first);
+    cats.forEach(function (c) {
+      var op = document.createElement('option');
+      op.value = c;
+      op.textContent = c;
+      sel.appendChild(op);
+    });
+    sel.value = cats.indexOf(current) !== -1 ? current : '';
+  }
+
+  function refreshCatSelects() {
+    fillSelect('cat', 'Category');
+    fillSelect('catFilter', 'All categories');
+    fillSelect('eCat', 'None');
+  }
+
+  function countIn(c) {
+    return items.filter(function (it) { return it.cat === c; }).length;
+  }
+
+  function catExists(name, skipIndex) {
+    return cats.some(function (c, i) {
+      return i !== skipIndex && c.toLowerCase() === name.toLowerCase();
+    });
+  }
+
+  // ---------- Manage categories ----------
+  function openCats() {
+    renderCats();
+    document.getElementById('catOverlay').style.display = 'flex';
+  }
+
+  function closeCats() {
+    document.getElementById('catOverlay').style.display = 'none';
+  }
+
+  function renderCats() {
+    var box = document.getElementById('catList');
+    if (cats.length === 0) {
+      box.innerHTML = '<div class="empty">No categories yet. Add one below.</div>';
+      return;
+    }
+    box.innerHTML = cats.map(function (c, i) {
+      return '<div class="catrow"><span>' + esc(c) + ' <small>(' + countIn(c) + ')</small></span>' +
+        '<button onclick="renameCat(' + i + ')">Rename</button>' +
+        '<button class="red" onclick="deleteCat(' + i + ')">Delete</button></div>';
+    }).join('');
+  }
+
+  function addCategory() {
+    var inp = document.getElementById('newCat');
+    var n = inp.value.trim();
+    if (!n) { return; }
+    if (catExists(n, -1)) { alert('That category already exists.'); return; }
+    cats.push(n);
+    inp.value = '';
+    save(); refreshCatSelects(); renderCats(); render();
+  }
+
+  function renameCat(i) {
+    var old = cats[i];
+    var n = prompt('Rename category', old);
+    if (n === null) { return; }
+    n = n.trim();
+    if (!n || n === old) { return; }
+    if (catExists(n, i)) { alert('That category already exists.'); return; }
+    var filterWas = document.getElementById('catFilter').value;
+    cats[i] = n;
+    items.forEach(function (it) { if (it.cat === old) { it.cat = n; } });
+    save(); refreshCatSelects();
+    if (filterWas === old) { document.getElementById('catFilter').value = n; }
+    renderCats(); render();
+  }
+
+  function deleteCat(i) {
+    var c = cats[i];
+    var count = countIn(c);
+    var msg = 'Delete "' + c + '"?' + (count ? ' ' + count + ' item(s) will become uncategorized.' : '');
+    if (!confirm(msg)) { return; }
+    cats.splice(i, 1);
+    items.forEach(function (it) { if (it.cat === c) { it.cat = ''; } });
+    save(); refreshCatSelects(); renderCats(); render();
+  }
+
+  function restoreDefaults() {
+    DEFAULT_CATS.forEach(function (c) {
+      if (!catExists(c, -1)) { cats.push(c); }
+    });
+    save(); refreshCatSelects(); renderCats(); render();
+  }
+
+  // ---------- Items ----------
+  function addItem() {
+    var n = document.getElementById('name').value.trim();
+    var q = parseInt(document.getElementById('qty').value, 10);
+    var m = parseInt(document.getElementById('minq').value, 10);
+    var u = document.getElementById('unit').value;
+    var c = document.getElementById('cat').value;
+    if (!n) { return; }
+    if (isNaN(q) || q < 0) { q = 1; }
+    if (isNaN(m) || m < 0) { m = 0; }
+    items.push({ id: Date.now(), name: n, qty: q, unit: u, cat: c, min: m, code: lastBarcode, img: '' });
+    if (lastBarcode) { barcodeNames[lastBarcode] = n; }
+    lastBarcode = '';
+    document.getElementById('name').value = '';
+    document.getElementById('qty').value = '';
+    document.getElementById('minq').value = '';
+    document.getElementById('unit').value = '';
+    document.getElementById('cat').value = '';
+    save(); render();
+  }
+
+  function change(id, d) {
+    items.forEach(function (it) {
+      if (it.id === id) { it.qty = Math.max(0, it.qty + d); }
+    });
+    save(); render();
+  }
+
+  function removeItem(id) {
+    if (!confirm('Delete this item?')) { return; }
+    items = items.filter(function (it) { return it.id !== id; });
+    save(); render();
+  }
+
+  // ---------- Editing ----------
+  function openEdit(id) {
+    var it = items.filter(function (x) { return x.id === id; })[0];
+    if (!it) { return; }
+    editingId = id;
+    document.getElementById('eName').value = it.name;
+    document.getElementById('eQty').value = it.qty;
+    document.getElementById('eUnit').value = it.unit || '';
+    document.getElementById('eCat').value = it.cat || '';
+    document.getElementById('eMin').value = it.min || 0;
+    document.getElementById('editOverlay').style.display = 'flex';
+  }
+
+  function closeEdit() {
+    editingId = null;
+    document.getElementById('editOverlay').style.display = 'none';
+  }
+
+  function saveEdit() {
+    var n = document.getElementById('eName').value.trim();
+    if (!n) { alert('The item needs a name.'); return; }
+    var q = parseInt(document.getElementById('eQty').value, 10);
+    var m = parseInt(document.getElementById('eMin').value, 10);
+    if (isNaN(q) || q < 0) { q = 0; }
+    if (isNaN(m) || m < 0) { m = 0; }
+    items.forEach(function (it) {
+      if (it.id === editingId) {
+        it.name = n;
+        it.qty = q;
+        it.unit = document.getElementById('eUnit').value;
+        it.cat = document.getElementById('eCat').value;
+        it.min = m;
+        if (it.code) { barcodeNames[it.code] = n; }
+      }
+    });
+    save(); closeEdit(); render();
+  }
+
+  // ---------- Photos ----------
+  function pickImage(id) {
+    pickingFor = id;
+    document.getElementById('filePicker').click();
+  }
+
+  document.getElementById('filePicker').addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file || pickingFor === null) { return; }
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        var s = 150 / Math.max(img.width, img.height);
+        c.width = img.width * s; c.height = img.height * s;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var data = c.toDataURL('image/jpeg', 0.7);
+        items.forEach(function (it) { if (it.id === pickingFor) { it.img = data; } });
+        save(); render();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  // ---------- Barcode scanning ----------
+  function startScan() {
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('Barcode scanning is not available in this browser. Please type the item name instead. Chrome on Android usually supports it when the page is opened over https.');
+      return;
+    }
+    var detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] });
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (stream) {
+      scanStream = stream;
+      var video = document.getElementById('video');
+      video.srcObject = stream;
+      video.play();
+      document.getElementById('scanBox').style.display = 'block';
+      document.getElementById('scanMsg').textContent = 'Point the camera at a barcode';
+      scanTimer = setInterval(function () {
+        detector.detect(video).then(function (codes) {
+          if (codes.length > 0) { handleCode(codes[0].rawValue); }
+        }).catch(function () {});
+      }, 400);
+    }).catch(function () {
+      alert('Could not open the camera. Check camera permission, or type the item name instead.');
+    });
+  }
+
+  function stopScan() {
+    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+    if (scanStream) { scanStream.getTracks().forEach(function (t) { t.stop(); }); scanStream = null; }
+    document.getElementById('scanBox').style.display = 'none';
+  }
+
+  function handleCode(code) {
+    stopScan();
+    lastBarcode = code;
+    var existing = items.filter(function (it) { return it.code === code; })[0];
+    if (existing) {
+      existing.qty += 1;
+      save(); render();
+      alert('Found "' + existing.name + '". Quantity increased by 1.');
+      lastBarcode = '';
+      return;
+    }
+    if (barcodeNames[code]) {
+      document.getElementById('name').value = barcodeNames[code];
+      return;
+    }
+    fetch('https://world.openfoodfacts.org/api/v0/product/' + code + '.json')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === 1 && d.product && d.product.product_name) {
+          document.getElementById('name').value = d.product.product_name;
+        } else {
+          alert('Barcode ' + code + ' not found online. Type the item name and press Add. It will be remembered for next time.');
+        }
+      })
+      .catch(function () {
+        alert('Could not look up the barcode. Type the item name and press Add. It will be remembered for next time.');
+      });
+  }
+
+  // ---------- Backup ----------
+  function exportData() {
+    var blob = new Blob([JSON.stringify({ items: items, categories: cats })], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pantry-backup.json';
+    a.click();
+  }
+
+  document.getElementById('importPicker').addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file) { return; }
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      try {
+        var data = JSON.parse(ev.target.result);
+        var list = Array.isArray(data) ? data : data.items;
+        if (!Array.isArray(list)) { throw new Error('bad'); }
+        var newCats = (!Array.isArray(data) && Array.isArray(data.categories)) ? data.categories : cats;
+        if (!confirm('Replace your current list with this backup?')) { return; }
+        items = list;
+        cats = newCats.slice();
+        items.forEach(function (it) { if (it.code) { barcodeNames[it.code] = it.name; } });
+        syncCats();
+        save(); refreshCatSelects(); render();
+      } catch (err) {
+        alert('That file could not be read as a pantry backup.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ---------- Display ----------
+  function render() {
+    var term = document.getElementById('search').value.toLowerCase();
+    var catSel = document.getElementById('catFilter').value;
+    var lowOnly = document.getElementById('lowOnly').checked;
+    var list = document.getElementById('list');
+    var shown = items.filter(function (it) {
+      var matches = it.name.toLowerCase().indexOf(term) !== -1;
+      var catOk = !catSel || it.cat === catSel;
+      var isLow = it.qty === 0 || (it.min > 0 && it.qty <= it.min);
+      return matches && catOk && (!lowOnly || isLow);
+    });
+    if (shown.length === 0) {
+      list.innerHTML = '<div class="empty">No items to show. Add your first one above.</div>';
+      return;
+    }
+    list.innerHTML = shown.map(function (it) {
+      var thumb = it.img ? '<img src="' + it.img + '">' : '&#128247;';
+      var cls = 'item';
+      var warn = '';
+      if (it.qty === 0) { cls += ' out'; warn = '<div class="warn out">Out of stock</div>'; }
+      else if (it.min > 0 && it.qty <= it.min) { cls += ' lowstock'; warn = '<div class="warn low">Running low</div>'; }
+      var bits = [];
+      if (it.cat) { bits.push(it.cat); }
+      if (it.unit) { bits.push(it.unit); }
+      if (it.min > 0) { bits.push('low at ' + it.min); }
+      var meta = bits.join(' | ');
+      return '<div class="' + cls + '">' +
+        '<div class="thumb" onclick="pickImage(' + it.id + ')">' + thumb + '</div>' +
+        '<div class="info"><div class="iname">' + esc(it.name) + '</div>' +
+        (meta ? '<div class="meta">' + esc(meta) + '</div>' : '') + warn + '</div>' +
+        '<div class="ctrl">' +
+        '<button onclick="change(' + it.id + ',-1)">-</button>' +
+        '<div class="count">' + it.qty + '</div>' +
+        '<button onclick="change(' + it.id + ',1)">+</button>' +
+        '<button class="edit" onclick="openEdit(' + it.id + ')">&#9998;</button>' +
+        '<button class="del" onclick="removeItem(' + it.id + ')">&#10006;</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  refreshCatSelects();
+  render();
+</script>
+</body>
+</html>
